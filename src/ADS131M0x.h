@@ -1,7 +1,6 @@
 #ifndef ADS131M0x_h
 #define ADS131M0x_h
 
-#include "Arduino.h"
 #include "SPI.h"
 
 // define for 2-channel version ADS131M02

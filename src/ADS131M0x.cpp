@@ -1,6 +1,4 @@
-#include "Arduino.h"
 #include "ADS131M0x.h"
-#include "SPI.h"
 
 #ifdef IS_M02
 #define DO_PRAGMA(x) _Pragma (#x)
