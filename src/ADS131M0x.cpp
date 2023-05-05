@@ -1,10 +1,16 @@
 #include "ADS131M0x.h"
+#include "freertos/task.h"
+#include <rom/ets_sys.h>
+#include "driver/gpio.h"
 
 #ifdef IS_M02
 #define DO_PRAGMA(x) _Pragma (#x)
 #define INFO(x) DO_PRAGMA(message ("\nREMARK: " #x))
 //INFO Version for ADS131M02
 #endif
+
+#define HIGH  1
+#define LOW   0
 
 int32_t ADS131M0x::val32Ch0 = 0x7FFFFF;
 
@@ -40,8 +46,8 @@ uint8_t ADS131M0x::writeRegister(uint8_t address, uint16_t value)
   uint8_t bytesRcv;
   uint16_t cmd = 0;
 
-  digitalWrite(csPin, LOW);
-  delayMicroseconds(1);
+  gpio_set_level(csPin, LOW);
+  ets_delay_us(1);
 
   cmd = (CMD_WRITE_REG) | (address << 7) | 0;
 
@@ -84,8 +90,8 @@ uint8_t ADS131M0x::writeRegister(uint8_t address, uint16_t value)
   spiPort->transfer16(0x0000);
   spiPort->transfer(0x00);
 #endif
-  delayMicroseconds(1);
-  digitalWrite(csPin, HIGH);
+  ets_delay_us(1);
+  gpio_set_level(csPin, HIGH);
 
   addressRcv = (res & REGMASK_CMD_READ_REG_ADDRESS) >> 7;
   bytesRcv = (res & REGMASK_CMD_READ_REG_BYTES);
@@ -110,8 +116,8 @@ uint16_t ADS131M0x::readRegister(uint8_t address)
 
   cmd = CMD_READ_REG | (address << 7 | 0);
 
-  digitalWrite(csPin, LOW);
-  delayMicroseconds(1);
+  gpio_set_level(csPin, LOW);
+  ets_delay_us(1);
 
   spiPort->transfer16(cmd);
   spiPort->transfer(0x00);
@@ -149,8 +155,8 @@ uint16_t ADS131M0x::readRegister(uint8_t address)
   spiPort->transfer16(0x0000);
   spiPort->transfer(0x00);
 #endif
-  delayMicroseconds(1);
-  digitalWrite(csPin, HIGH);
+  ets_delay_us(1);
+  gpio_set_level(csPin, HIGH);
   return data;
 }
 
@@ -176,15 +182,23 @@ void ADS131M0x::writeRegisterMasked(uint8_t address, uint16_t value, uint16_t ma
 
 /// @brief Hardware reset (reset low activ) 
 /// @param reset_pin 
-void ADS131M0x::reset(uint8_t reset_pin)
+void ADS131M0x::reset(gpio_num_t reset_pin)
 {
-  pinMode(reset_pin, OUTPUT);
-  digitalWrite(reset_pin, HIGH);
-  delay(100);
-  digitalWrite(reset_pin, LOW);
-  delay(100);
-  digitalWrite(reset_pin, HIGH);
-  delay(1);
+  gpio_config_t gpio_conf = {
+    .pin_bit_mask = 1ULL<<reset_pin,
+    .mode = GPIO_MODE_OUTPUT,
+    .pull_up_en = GPIO_PULLUP_DISABLE,
+    .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    .intr_type = GPIO_INTR_DISABLE
+  };
+  gpio_config(&gpio_conf);
+  
+  gpio_set_level(reset_pin, HIGH);
+  vTaskDelay(100);
+  gpio_set_level(reset_pin, LOW);
+  vTaskDelay(100);
+  gpio_set_level(reset_pin, HIGH);
+  vTaskDelay(100);
 }
 
 /**
@@ -209,7 +223,7 @@ uint16_t ADS131M0x::isResetOK(void)
  * @param cs_pin
  * @param drdy_pin
  */
-void ADS131M0x::begin(SPIClass *port, uint8_t clk_pin, uint8_t miso_pin, uint8_t mosi_pin, uint8_t cs_pin, uint8_t drdy_pin)
+void ADS131M0x::begin(SPIClass *port, gpio_num_t clk_pin, gpio_num_t miso_pin, gpio_num_t mosi_pin, gpio_num_t cs_pin, gpio_num_t drdy_pin)
 {
   // Set pins up
   csPin = cs_pin;
@@ -219,11 +233,25 @@ void ADS131M0x::begin(SPIClass *port, uint8_t clk_pin, uint8_t miso_pin, uint8_t
   spiPort->begin(clk_pin, miso_pin, mosi_pin, cs_pin); // SCLK, MISO, MOSI, SS
   SPISettings settings(spiClockSpeed, SPI_MSBFIRST, SPI_MODE1);
   spiPort->beginTransaction(settings);
-  delay(1);
+  vTaskDelay(pdMS_TO_TICKS(1));
   
-  pinMode(csPin, OUTPUT);
-  digitalWrite(csPin,HIGH); // CS HIGH --> not selected
-  pinMode(drdyPin, INPUT);  // DRDY Input
+  // pinMode(csPin, OUTPUT);
+  // gpio_set_level(csPin,HIGH); // CS HIGH --> not selected
+  gpio_config_t gpio_conf = {
+    .pin_bit_mask = 1ULL<<cs_pin,
+    .mode = GPIO_MODE_OUTPUT,
+    .pull_up_en = GPIO_PULLUP_DISABLE,
+    .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    .intr_type = GPIO_INTR_DISABLE
+  };
+  gpio_config(&gpio_conf);
+  gpio_set_level(cs_pin, 1);
+
+  // pinMode(drdyPin, INPUT);  // DRDY Input
+  gpio_conf.pin_bit_mask = 1ULL<<drdy_pin;
+  gpio_conf.mode = GPIO_MODE_INPUT;
+  gpio_config(&gpio_conf);
+
 }
 
 /**
@@ -232,7 +260,7 @@ void ADS131M0x::begin(SPIClass *port, uint8_t clk_pin, uint8_t miso_pin, uint8_t
  * @param channel 
  * @return int8_t 
  */
-int8_t ADS131M0x::isDataReadySoft(byte channel)
+int8_t ADS131M0x::isDataReadySoft(uint8_t channel)
 {
   if (channel == 0)
   {
@@ -557,7 +585,7 @@ bool ADS131M0x::setChannelGainCalibration(uint8_t channel, uint32_t gain)
 /// @return 
 bool ADS131M0x::isDataReady()
 {
-  if (digitalRead(drdyPin) == HIGH)
+  if (gpio_get_level(drdyPin) == HIGH)
   {
     return false;
   }
@@ -575,7 +603,7 @@ int32_t ADS131M0x::readfastCh0(void)
   int32_t aux;
   adcOutput res;
 
-  digitalWrite(csPin, LOW);
+  gpio_set_level(csPin, LOW);
   //NOP();
   x = spiPort->transfer(0x00);
   x2 = spiPort->transfer(0x00);
@@ -622,7 +650,7 @@ int32_t ADS131M0x::readfastCh0(void)
 
   //delay(1);
   //NOP();
-  digitalWrite(csPin, HIGH);
+  gpio_set_level(csPin, HIGH);
 
   return val32Ch0;
 }
@@ -638,9 +666,9 @@ adcOutput ADS131M0x::readADC(void)
   int32_t aux;
   adcOutput res;
 
-  digitalWrite(csPin, LOW);
+  gpio_set_level(csPin, LOW);
 #ifndef NO_CS_DELAY
-  delayMicroseconds(1);
+  ets_delay_us(1);
 #endif
   x = spiPort->transfer(0x00);
   x2 = spiPort->transfer(0x00);
@@ -712,8 +740,8 @@ adcOutput ADS131M0x::readADC(void)
   spiPort->transfer(0x00);
   spiPort->transfer(0x00);
 #ifndef NO_CS_DELAY
-  delayMicroseconds(1);
+  ets_delay_us(1);
 #endif
-  digitalWrite(csPin, HIGH);
+  gpio_set_level(csPin, HIGH);
   return res;
 }
