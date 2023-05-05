@@ -263,10 +263,10 @@ public:
   static int32_t val32Ch0;
   ADS131M0x();
 
-  void begin(SPIClass *port, uint8_t clk_pin, uint8_t miso_pin, uint8_t mosi_pin, uint8_t cs_pin, uint8_t drdy_pin);
-  int8_t isDataReadySoft(byte channel);
+  void begin(SPIClass *port, gpio_num_t clk_pin, gpio_num_t miso_pin, gpio_num_t mosi_pin, gpio_num_t cs_pin, gpio_num_t drdy_pin);
+  int8_t isDataReadySoft(uint8_t channel);
   bool isDataReady(void);
-  void reset(uint8_t reset_pin); 
+  void reset(gpio_num_t reset_pin); 
   bool isResetStatus(void);
   bool isLockSPI(void);
   bool setDrdyFormat(uint8_t drdyFormat);
@@ -292,8 +292,8 @@ private:
   void writeRegisterMasked(uint8_t address, uint16_t value, uint16_t mask);
   uint16_t readRegister(uint8_t address);
 
-  uint8_t csPin;
-  uint8_t drdyPin;
+  gpio_num_t csPin;
+  gpio_num_t drdyPin;
  
   SPIClass *spiPort;
   uint32_t spiClockSpeed = 1000000; // default 1MHz SPI-clock
