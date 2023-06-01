@@ -65,11 +65,11 @@
 //
 //*****************************************************************************
 
-#define nDRDY_PIN           (GPIO_NUM_0)
+#define nDRDY_PIN           (GPIO_NUM_12)
 
 #define nCS_PIN             (GPIO_NUM_5)
 
-#define nSYNC_nRESET_PIN    (GPIO_NUM_4)
+#define nSYNC_nRESET_PIN    (GPIO_NUM_16)
 
 #define SPI_BUS VSPI_HOST
 #define MOSI_PIN GPIO_NUM_23
